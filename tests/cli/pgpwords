@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PGPWORDS="$ROOT/bin/pgpwords"
+FIXTURE="$ROOT/tests/fixtures/pgp_wordlist.tsv"
+failures=0
+SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/pgpwords-tests.XXXXXX")"
+STDOUT_FILE="$SCRATCH/stdout"
+STDERR_FILE="$SCRATCH/stderr"
+
+cleanup() {
+	mv "$SCRATCH" ~/.Trash/ 2>/dev/null || rm -rf "$SCRATCH"
+}
+trap cleanup EXIT
+
+pass() {
+	:
+}
+
+fail() {
+	printf 'not ok - %s\n' "$1" >&2
+	failures=$((failures + 1))
+}
+
+if [[ ! -x "$PGPWORDS" ]]; then
+	fail "$PGPWORDS is not executable"
+	exit "$failures"
+fi
+
+expect_stdout() {
+	local name="$1"
+	local expected="$2"
+	shift 2
+	local rc
+	"$@" >"$STDOUT_FILE" 2>"$STDERR_FILE"
+	rc=$?
+	local actual err
+	actual="$(cat "$STDOUT_FILE")"
+	err="$(cat "$STDERR_FILE")"
+	if [[ "$rc" -eq 0 && "$actual" == "$expected" && -z "$err" ]]; then
+		pass "$name"
+	else
+		fail "$name: rc=$rc stdout=[$actual] stderr=[$err]"
+	fi
+}
+
+expect_failure() {
+	local name="$1"
+	local expected_fragment="$2"
+	shift 2
+	local rc
+	"$@" >"$STDOUT_FILE" 2>"$STDERR_FILE"
+	rc=$?
+	local actual err
+	actual="$(cat "$STDOUT_FILE")"
+	err="$(cat "$STDERR_FILE")"
+	if [[ "$rc" -ne 0 && -z "$actual" && "$err" == *"$expected_fragment"* ]]; then
+		pass "$name"
+	else
+		fail "$name: rc=$rc stdout=[$actual] stderr=[$err]"
+	fi
+}
+
+expect_stdout 'about is one line' 'pgpwords 0.1.0 - translate hexadecimal bytes to and from the PGP word list' "$PGPWORDS" --about
+expect_stdout 'help contains usage' 'Usage: pgpwords [OPTIONS] [--] [INPUT]' "$PGPWORDS" --help --usage-only
+expect_stdout 'encode documented example' 'topmost Istanbul' "$PGPWORDS" --encode E582
+expect_stdout 'encode accepts lowercase hex' 'topmost Istanbul' "$PGPWORDS" --encode e582
+expect_stdout 'encode strips common hex separators' 'topmost Istanbul Pluto vagabond' "$PGPWORDS" --encode 'E582 94-F2'
+expect_stdout 'decode documented example' 'E582' "$PGPWORDS" --decode 'topmost Istanbul'
+expect_stdout 'decode accepts case-insensitive words' 'E582' "$PGPWORDS" --decode 'TOPMOST istanbul'
+expect_stdout 'stdin encode' 'miser travesty' bash -c "printf '82e5' | '$PGPWORDS' --encode -"
+expect_stdout 'stdin decode' '82E5' bash -c "printf 'miser travesty' | '$PGPWORDS' --decode @stdin"
+expect_stdout 'auto detects hex input' 'topmost Istanbul' "$PGPWORDS" E582
+expect_stdout 'auto detects word input' 'E582' "$PGPWORDS" topmost Istanbul
+
+expect_failure 'rejects odd hex digit count' 'hex input must contain an even number of digits' "$PGPWORDS" --encode ABC
+expect_failure 'rejects non-hex input in encode mode' 'hex input contains non-hex character' "$PGPWORDS" --encode 'E5XX'
+expect_failure 'rejects unknown word' 'unknown PGP word at position 1: notaword' "$PGPWORDS" --decode 'topmost notaword'
+expect_failure 'rejects wrong parity word' 'word at position 1 belongs to the even list, expected odd: topmost' "$PGPWORDS" --decode 'topmost topmost'
+
+even_hex=""
+even_words=()
+odd_hex=""
+odd_words=()
+while IFS=$'\t' read -r hex even odd; do
+	[[ "$hex" == "hex" ]] && continue
+	even_hex="${even_hex}${hex}00"
+	even_words+=("$even" "adroitness")
+	odd_hex="${odd_hex}00${hex}"
+	odd_words+=("aardvark" "$odd")
+done < "$FIXTURE"
+
+even_words_text="${even_words[*]}"
+odd_words_text="${odd_words[*]}"
+expect_stdout 'every even-list word encodes by set' "$even_words_text" "$PGPWORDS" --encode "$even_hex"
+expect_stdout 'every even-list word decodes by set' "$even_hex" "$PGPWORDS" --decode "$even_words_text"
+expect_stdout 'every odd-list word encodes by set' "$odd_words_text" "$PGPWORDS" --encode "$odd_hex"
+expect_stdout 'every odd-list word decodes by set' "$odd_hex" "$PGPWORDS" --decode "$odd_words_text"
+
+expect_failure 'transposition is caught by parity' 'belongs to the odd list, expected even' "$PGPWORDS" --decode 'Istanbul topmost'
+expect_failure 'insertion is caught by parity' 'belongs to the even list, expected odd' "$PGPWORDS" --decode 'topmost topmost Istanbul'
+expect_failure 'deletion is caught by parity' 'belongs to the odd list, expected even' "$PGPWORDS" --decode 'Istanbul Pluto'
+expect_failure 'wrong-list substitution is caught by parity' 'belongs to the odd list, expected even' "$PGPWORDS" --decode 'travesty Istanbul'
+expect_stdout 'same-list substitution decodes as a different byte' 'E5F2' "$PGPWORDS" --decode 'topmost vagabond'
+
+if [[ "$failures" -eq 0 ]]; then
+	printf 'ok - pgpwords CLI\n'
+fi
+
+exit "$failures"

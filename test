@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+failures=0
+
+run_test() {
+	local path="$1"
+	printf '== %s ==\n' "$path"
+	"$path"
+	local rc=$?
+	if [[ "$rc" -ne 0 ]]; then
+		failures=$((failures + rc))
+	fi
+}
+
+run_test "$ROOT/tests/cli/pgpwords"
+
+exit "$failures"

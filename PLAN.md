@@ -1,0 +1,13 @@
+- [x] Confirm PGP wordlist source behavior and capture source links. Completed 2026-06-01 06:18 EDT.
+  - Source behavior: bytes render left-to-right; offset 0 uses the even table, offset 1 uses the odd table, alternating thereafter.
+  - Source links: https://philzimmermann.com/docs/PGP_word_list.pdf and https://web.mit.edu/network/pgpfone/manual/
+  - Curiosity poke: does decoding validate even/odd list position, not just word membership?
+- [x] Add failing CLI tests for help/about, hex-to-words, words-to-hex, stdin, case-insensitivity, and invalid input. Completed 2026-06-01 06:18 EDT.
+  - Curiosity poke: what should happen with separators inside hex fingerprints?
+- [x] Add exhaustive fixture-driven tests for every byte in even and odd positions in both directions. Completed 2026-06-01 06:18 EDT.
+  - Curiosity poke: can a duplicated/transposed/omitted word accidentally remain valid for adjacent bytes?
+- [x] Implement `bin/pgpwords` in LuaJIT with GNU-style options and stdin support. Completed 2026-06-01 06:18 EDT.
+  - Curiosity poke: can auto mode misclassify input containing only hex-looking words?
+- [x] Add `flake.nix`, `./test`, `./build`, and dirtree notes. Completed 2026-06-01 06:18 EDT.
+  - Curiosity poke: do scripts stay useful without Nix when LuaJIT is already on PATH?
+- [x] Run `./test`, `./build`, inspect tree, and commit project files with `jj` while leaving `AGENTS.md` uncommitted. Completed 2026-06-01 06:20 EDT.

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="$ROOT/bin/pgpwords"
+
+if [[ ! -x "$BIN" ]]; then
+	printf 'build failed: %s is not executable\n' "$BIN" >&2
+	exit 1
+fi
+
+if ! PGPWORDS_BIN="$BIN" luajit -e 'assert(loadfile(os.getenv("PGPWORDS_BIN")))'; then
+	printf 'build failed: LuaJIT syntax check failed\n' >&2
+	exit 1
+fi
+mkdir -p "$ROOT/zig-out/bin"
+cp "$BIN" "$ROOT/zig-out/bin/pgpwords"
+chmod +x "$ROOT/zig-out/bin/pgpwords"
+printf 'built %s\n' "$ROOT/zig-out/bin/pgpwords"

@@ -1,0 +1,464 @@
+#!/usr/bin/env luajit
+
+local VERSION = "0.1.0"
+
+local WORDS = {
+	{"00","aardvark","adroitness"},
+	{"01","absurd","adviser"},
+	{"02","accrue","aftermath"},
+	{"03","acme","aggregate"},
+	{"04","adrift","alkali"},
+	{"05","adult","almighty"},
+	{"06","afflict","amulet"},
+	{"07","ahead","amusement"},
+	{"08","aimless","antenna"},
+	{"09","Algol","applicant"},
+	{"0A","allow","Apollo"},
+	{"0B","alone","armistice"},
+	{"0C","ammo","article"},
+	{"0D","ancient","asteroid"},
+	{"0E","apple","Atlantic"},
+	{"0F","artist","atmosphere"},
+	{"10","assume","autopsy"},
+	{"11","Athens","Babylon"},
+	{"12","atlas","backwater"},
+	{"13","Aztec","barbecue"},
+	{"14","baboon","belowground"},
+	{"15","backfield","bifocals"},
+	{"16","backward","bodyguard"},
+	{"17","banjo","bookseller"},
+	{"18","beaming","borderline"},
+	{"19","bedlamp","bottomless"},
+	{"1A","beehive","Bradbury"},
+	{"1B","beeswax","bravado"},
+	{"1C","befriend","Brazilian"},
+	{"1D","Belfast","breakaway"},
+	{"1E","berserk","Burlington"},
+	{"1F","billiard","businessman"},
+	{"20","bison","butterfat"},
+	{"21","blackjack","Camelot"},
+	{"22","blockade","candidate"},
+	{"23","blowtorch","cannonball"},
+	{"24","bluebird","Capricorn"},
+	{"25","bombast","caravan"},
+	{"26","bookshelf","caretaker"},
+	{"27","brackish","celebrate"},
+	{"28","breadline","cellulose"},
+	{"29","breakup","certify"},
+	{"2A","brickyard","chambermaid"},
+	{"2B","briefcase","Cherokee"},
+	{"2C","Burbank","Chicago"},
+	{"2D","button","clergyman"},
+	{"2E","buzzard","coherence"},
+	{"2F","cement","combustion"},
+	{"30","chairlift","commando"},
+	{"31","chatter","company"},
+	{"32","checkup","component"},
+	{"33","chisel","concurrent"},
+	{"34","choking","confidence"},
+	{"35","chopper","conformist"},
+	{"36","Christmas","congregate"},
+	{"37","clamshell","consensus"},
+	{"38","classic","consulting"},
+	{"39","classroom","corporate"},
+	{"3A","cleanup","corrosion"},
+	{"3B","clockwork","councilman"},
+	{"3C","cobra","crossover"},
+	{"3D","commence","crucifix"},
+	{"3E","concert","cumbersome"},
+	{"3F","cowbell","customer"},
+	{"40","crackdown","Dakota"},
+	{"41","cranky","decadence"},
+	{"42","crowfoot","December"},
+	{"43","crucial","decimal"},
+	{"44","crumpled","designing"},
+	{"45","crusade","detector"},
+	{"46","cubic","detergent"},
+	{"47","dashboard","determine"},
+	{"48","deadbolt","dictator"},
+	{"49","deckhand","dinosaur"},
+	{"4A","dogsled","direction"},
+	{"4B","dragnet","disable"},
+	{"4C","drainage","disbelief"},
+	{"4D","dreadful","disruptive"},
+	{"4E","drifter","distortion"},
+	{"4F","dropper","document"},
+	{"50","drumbeat","embezzle"},
+	{"51","drunken","enchanting"},
+	{"52","Dupont","enrollment"},
+	{"53","dwelling","enterprise"},
+	{"54","eating","equation"},
+	{"55","edict","equipment"},
+	{"56","egghead","escapade"},
+	{"57","eightball","Eskimo"},
+	{"58","endorse","everyday"},
+	{"59","endow","examine"},
+	{"5A","enlist","existence"},
+	{"5B","erase","exodus"},
+	{"5C","escape","fascinate"},
+	{"5D","exceed","filament"},
+	{"5E","eyeglass","finicky"},
+	{"5F","eyetooth","forever"},
+	{"60","facial","fortitude"},
+	{"61","fallout","frequency"},
+	{"62","flagpole","gadgetry"},
+	{"63","flatfoot","Galveston"},
+	{"64","flytrap","getaway"},
+	{"65","fracture","glossary"},
+	{"66","framework","gossamer"},
+	{"67","freedom","graduate"},
+	{"68","frighten","gravity"},
+	{"69","gazelle","guitarist"},
+	{"6A","Geiger","hamburger"},
+	{"6B","glitter","Hamilton"},
+	{"6C","glucose","handiwork"},
+	{"6D","goggles","hazardous"},
+	{"6E","goldfish","headwaters"},
+	{"6F","gremlin","hemisphere"},
+	{"70","guidance","hesitate"},
+	{"71","hamlet","hideaway"},
+	{"72","highchair","holiness"},
+	{"73","hockey","hurricane"},
+	{"74","indoors","hydraulic"},
+	{"75","indulge","impartial"},
+	{"76","inverse","impetus"},
+	{"77","involve","inception"},
+	{"78","island","indigo"},
+	{"79","jawbone","inertia"},
+	{"7A","keyboard","infancy"},
+	{"7B","kickoff","inferno"},
+	{"7C","kiwi","informant"},
+	{"7D","klaxon","insincere"},
+	{"7E","locale","insurgent"},
+	{"7F","lockup","integrate"},
+	{"80","merit","intention"},
+	{"81","minnow","inventive"},
+	{"82","miser","Istanbul"},
+	{"83","Mohawk","Jamaica"},
+	{"84","mural","Jupiter"},
+	{"85","music","leprosy"},
+	{"86","necklace","letterhead"},
+	{"87","Neptune","liberty"},
+	{"88","newborn","maritime"},
+	{"89","nightbird","matchmaker"},
+	{"8A","Oakland","maverick"},
+	{"8B","obtuse","Medusa"},
+	{"8C","offload","megaton"},
+	{"8D","optic","microscope"},
+	{"8E","orca","microwave"},
+	{"8F","payday","midsummer"},
+	{"90","peachy","millionaire"},
+	{"91","pheasant","miracle"},
+	{"92","physique","misnomer"},
+	{"93","playhouse","molasses"},
+	{"94","Pluto","molecule"},
+	{"95","preclude","Montana"},
+	{"96","prefer","monument"},
+	{"97","preshrunk","mosquito"},
+	{"98","printer","narrative"},
+	{"99","prowler","nebula"},
+	{"9A","pupil","newsletter"},
+	{"9B","puppy","Norwegian"},
+	{"9C","python","October"},
+	{"9D","quadrant","Ohio"},
+	{"9E","quiver","onlooker"},
+	{"9F","quota","opulent"},
+	{"A0","ragtime","Orlando"},
+	{"A1","ratchet","outfielder"},
+	{"A2","rebirth","Pacific"},
+	{"A3","reform","pandemic"},
+	{"A4","regain","Pandora"},
+	{"A5","reindeer","paperweight"},
+	{"A6","rematch","paragon"},
+	{"A7","repay","paragraph"},
+	{"A8","retouch","paramount"},
+	{"A9","revenge","passenger"},
+	{"AA","reward","pedigree"},
+	{"AB","rhythm","Pegasus"},
+	{"AC","ribcage","penetrate"},
+	{"AD","ringbolt","perceptive"},
+	{"AE","robust","performance"},
+	{"AF","rocker","pharmacy"},
+	{"B0","ruffled","phonetic"},
+	{"B1","sailboat","photograph"},
+	{"B2","sawdust","pioneer"},
+	{"B3","scallion","pocketful"},
+	{"B4","scenic","politeness"},
+	{"B5","scorecard","positive"},
+	{"B6","Scotland","potato"},
+	{"B7","seabird","processor"},
+	{"B8","select","provincial"},
+	{"B9","sentence","proximate"},
+	{"BA","shadow","puberty"},
+	{"BB","shamrock","publisher"},
+	{"BC","showgirl","pyramid"},
+	{"BD","skullcap","quantity"},
+	{"BE","skydive","racketeer"},
+	{"BF","slingshot","rebellion"},
+	{"C0","slowdown","recipe"},
+	{"C1","snapline","recover"},
+	{"C2","snapshot","repellent"},
+	{"C3","snowcap","replica"},
+	{"C4","snowslide","reproduce"},
+	{"C5","solo","resistor"},
+	{"C6","southward","responsive"},
+	{"C7","soybean","retraction"},
+	{"C8","spaniel","retrieval"},
+	{"C9","spearhead","retrospect"},
+	{"CA","spellbind","revenue"},
+	{"CB","spheroid","revival"},
+	{"CC","spigot","revolver"},
+	{"CD","spindle","sandalwood"},
+	{"CE","spyglass","sardonic"},
+	{"CF","stagehand","Saturday"},
+	{"D0","stagnate","savagery"},
+	{"D1","stairway","scavenger"},
+	{"D2","standard","sensation"},
+	{"D3","stapler","sociable"},
+	{"D4","steamship","souvenir"},
+	{"D5","sterling","specialist"},
+	{"D6","stockman","speculate"},
+	{"D7","stopwatch","stethoscope"},
+	{"D8","stormy","stupendous"},
+	{"D9","sugar","supportive"},
+	{"DA","surmount","surrender"},
+	{"DB","suspense","suspicious"},
+	{"DC","sweatband","sympathy"},
+	{"DD","swelter","tambourine"},
+	{"DE","tactics","telephone"},
+	{"DF","talon","therapist"},
+	{"E0","tapeworm","tobacco"},
+	{"E1","tempest","tolerance"},
+	{"E2","tiger","tomorrow"},
+	{"E3","tissue","torpedo"},
+	{"E4","tonic","tradition"},
+	{"E5","topmost","travesty"},
+	{"E6","tracker","trombonist"},
+	{"E7","transit","truncated"},
+	{"E8","trauma","typewriter"},
+	{"E9","treadmill","ultimate"},
+	{"EA","Trojan","undaunted"},
+	{"EB","trouble","underfoot"},
+	{"EC","tumor","unicorn"},
+	{"ED","tunnel","unify"},
+	{"EE","tycoon","universe"},
+	{"EF","uncut","unravel"},
+	{"F0","unearth","upcoming"},
+	{"F1","unwind","vacancy"},
+	{"F2","uproot","vagabond"},
+	{"F3","upset","vertigo"},
+	{"F4","upshot","Virginia"},
+	{"F5","vapor","visitor"},
+	{"F6","village","vocalist"},
+	{"F7","virus","voyager"},
+	{"F8","Vulcan","warranty"},
+	{"F9","waffle","Waterloo"},
+	{"FA","wallet","whimsical"},
+	{"FB","watchword","Wichita"},
+	{"FC","wayside","Wilmington"},
+	{"FD","willow","Wyoming"},
+	{"FE","woodlark","yesteryear"},
+	{"FF","Zulu","Yucatan"},
+}
+
+local even_by_hex = {}
+local odd_by_hex = {}
+local even_to_hex = {}
+local odd_to_hex = {}
+
+for _, row in ipairs(WORDS) do
+	even_by_hex[row[1]] = row[2]
+	odd_by_hex[row[1]] = row[3]
+	even_to_hex[string.lower(row[2])] = row[1]
+	odd_to_hex[string.lower(row[3])] = row[1]
+end
+
+local function usage()
+	return "Usage: pgpwords [OPTIONS] [--] [INPUT]"
+end
+
+local function help()
+	return table.concat({
+		usage(),
+		"",
+		"Translate hexadecimal bytes to and from the PGP word list.",
+		"",
+		"Options:",
+		"  -e, --encode        Treat input as hexadecimal and output PGP words",
+		"  -d, --decode        Treat input as PGP words and output hexadecimal",
+		"  -h, --help          Show this help",
+		"      --about         Show one-line program information",
+		"      --lang CODE     Accept language override; English is currently implemented",
+		"",
+		"Input may be passed as arguments, '-' or '@stdin', or via stdin when no input is given.",
+	}, "\n")
+end
+
+local function die(message)
+	io.stderr:write("pgpwords: " .. message .. "\n")
+	os.exit(1)
+end
+
+local function read_stdin()
+	local chunks = {}
+	while true do
+		local chunk = io.read(8192)
+		if chunk == nil then break end
+		chunks[#chunks + 1] = chunk
+	end
+	return table.concat(chunks)
+end
+
+local function normalize_hex(input)
+	local without_prefixes = input:gsub("0[xX]", "")
+	local compact = without_prefixes:gsub("[%s:%-_]", "")
+	if compact:find("[^0-9A-Fa-f]") then
+		die("hex input contains non-hex character")
+	end
+	if #compact % 2 ~= 0 then
+		die("hex input must contain an even number of digits")
+	end
+	return string.upper(compact)
+end
+
+local function encode(input)
+	local compact = normalize_hex(input)
+	local out = {}
+	local pos = 0
+	for i = 1, #compact, 2 do
+		local byte = compact:sub(i, i + 1)
+		if pos % 2 == 0 then
+			out[#out + 1] = even_by_hex[byte]
+		else
+			out[#out + 1] = odd_by_hex[byte]
+		end
+		pos = pos + 1
+	end
+	return table.concat(out, " ")
+end
+
+local function decode(input)
+	local out = {}
+	local pos = 0
+	local saw_word = false
+	for word in input:gmatch("%S+") do
+		saw_word = true
+		local lower = string.lower(word)
+		if pos % 2 == 0 then
+			if even_to_hex[lower] then
+				out[#out + 1] = even_to_hex[lower]
+			elseif odd_to_hex[lower] then
+				die("word at position " .. pos .. " belongs to the odd list, expected even: " .. word)
+			else
+				die("unknown PGP word at position " .. pos .. ": " .. word)
+			end
+		else
+			if odd_to_hex[lower] then
+				out[#out + 1] = odd_to_hex[lower]
+			elseif even_to_hex[lower] then
+				die("word at position " .. pos .. " belongs to the even list, expected odd: " .. word)
+			else
+				die("unknown PGP word at position " .. pos .. ": " .. word)
+			end
+		end
+		pos = pos + 1
+	end
+	if not saw_word then
+		die("word input is empty")
+	end
+	return table.concat(out)
+end
+
+local function looks_like_hex(input)
+	local without_prefixes = input:gsub("0[xX]", "")
+	local compact = without_prefixes:gsub("[%s:%-_]", "")
+	return #compact > 0 and #compact % 2 == 0 and compact:find("[^0-9A-Fa-f]") == nil
+end
+
+local function parse_args(argv)
+	local mode = nil
+	local parts = {}
+	local stop_options = false
+	local usage_only = false
+	local help_requested = false
+	local i = 1
+	while i <= #argv do
+		local arg = argv[i]
+		if not stop_options and arg == "--" then
+			stop_options = true
+		elseif not stop_options and (arg == "-h" or arg == "--help") then
+			help_requested = true
+		elseif not stop_options and arg == "--usage-only" then
+			usage_only = true
+		elseif not stop_options and arg == "--about" then
+			return { action = "about" }
+		elseif not stop_options and (arg == "-e" or arg == "--encode") then
+			mode = "encode"
+		elseif not stop_options and (arg == "-d" or arg == "--decode") then
+			mode = "decode"
+		elseif not stop_options and arg == "--lang" then
+			i = i + 1
+			if i > #argv then
+				die("--lang requires a language code")
+			end
+		elseif not stop_options and arg:sub(1, 7) == "--lang=" then
+		elseif not stop_options and (arg == "--simple" or arg == "--no-ansi" or arg == "--no-color") then
+		elseif not stop_options and arg:sub(1, 1) == "-" and arg ~= "-" then
+			die("unknown option: " .. arg)
+		else
+			parts[#parts + 1] = arg
+		end
+		i = i + 1
+	end
+	if help_requested then
+		return { action = "help", usage_only = usage_only }
+	end
+	return { action = "run", mode = mode, input_parts = parts, usage_only = usage_only }
+end
+
+local args = {}
+for i = 1, #arg do
+	args[i] = arg[i]
+end
+
+local parsed = parse_args(args)
+
+if parsed.action == "about" then
+	print("pgpwords " .. VERSION .. " - translate hexadecimal bytes to and from the PGP word list")
+	os.exit(0)
+end
+
+if parsed.action == "help" then
+	if parsed.usage_only then
+		print(usage())
+	else
+		print(help())
+	end
+	os.exit(0)
+end
+
+local input
+if #parsed.input_parts == 0 then
+	input = read_stdin()
+elseif #parsed.input_parts == 1 and (parsed.input_parts[1] == "-" or parsed.input_parts[1] == "@stdin") then
+	input = read_stdin()
+else
+	input = table.concat(parsed.input_parts, " ")
+end
+
+local mode = parsed.mode
+if mode == nil then
+	if looks_like_hex(input) then
+		mode = "encode"
+	else
+		mode = "decode"
+	end
+end
+
+if mode == "encode" then
+	print(encode(input))
+elseif mode == "decode" then
+	print(decode(input))
+else
+	die("internal error: unknown mode")
+end
