@@ -11,3 +11,9 @@
 - [x] Add `flake.nix`, `./test`, `./build`, and dirtree notes. Completed 2026-06-01 06:18 EDT.
   - Curiosity poke: do scripts stay useful without Nix when LuaJIT is already on PATH?
 - [x] Run `./test`, `./build`, inspect tree, and commit project files with `jj` while leaving `AGENTS.md` uncommitted. Completed 2026-06-01 06:20 EDT.
+- [x] Add opt-in endian extension markers. Completed 2026-06-01 06:49 EDT.
+  - Behavior: stock mode remains the default; `--endian=big` prefixes the `BE` marker while encoding already-big-endian bytes; `--endian=auto` interprets markers only while decoding words to hex.
+  - Curiosity poke: does the repeated `00 00 ... BE` escape grammar reject malformed collisions instead of silently losing bytes?
+- [ ] Document endian extension and publish the project.
+  - Work: explain how/why in `--help`, start `README.md`, add MIT `LICENSE`, and publish GitHub repo `pgpwords` with `yolo` as the main branch.
+  - Curiosity poke: does the published branch name match local `yolo` rather than GitHub's default `main`?

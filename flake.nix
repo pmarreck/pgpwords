@@ -2,7 +2,7 @@
 	description = "PGP wordlist CLI in LuaJIT";
 
 	inputs = {
-		nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+		nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 	};
 
 	outputs = { self, nixpkgs }:
@@ -22,6 +22,8 @@
 					packages = with pkgs; [
 						bash
 						coreutils
+						gh
+						jujutsu
 						luajit
 						ripgrep
 					];

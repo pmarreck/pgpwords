@@ -286,9 +286,18 @@ local function help()
 		"Options:",
 		"  -e, --encode        Treat input as hexadecimal and output PGP words",
 		"  -d, --decode        Treat input as PGP words and output hexadecimal",
+		"      --endian=MODE   Extension mode: none, auto for decode, big for encode",
 		"  -h, --help          Show this help",
 		"      --about         Show one-line program information",
 		"      --lang CODE     Accept language override; English is currently implemented",
+		"",
+		"Endian extension:",
+		"  Default behavior is the stock PGP wordlist byte-stream encoding: no endian marker is emitted or interpreted.",
+		"  The opt-in endian extension makes byte-order intent explicit for fingerprints and binary values where endian confusion is a real failure mode.",
+		"  --endian=big is valid with --encode and prefixes byte BE before the already-big-endian input bytes.",
+		"  --endian=auto is valid with --decode and strips an explicit BE marker from decoded bytes.",
+		"  Literal data that collides with the marker may be escaped as (00 00)^n BE followed by the original colliding payload.",
+		"  Example: --encode --endian=big E582 emits words for BE E5 82, shifting payload parity by one word.",
 		"",
 		"Input may be passed as arguments, '-' or '@stdin', or via stdin when no input is given.",
 	}, "\n")
@@ -321,8 +330,11 @@ local function normalize_hex(input)
 	return string.upper(compact)
 end
 
-local function encode(input)
+local function encode(input, endian)
 	local compact = normalize_hex(input)
+	if endian == "big" then
+		compact = "BE" .. compact
+	end
 	local out = {}
 	local pos = 0
 	for i = 1, #compact, 2 do
@@ -335,6 +347,34 @@ local function encode(input)
 		pos = pos + 1
 	end
 	return table.concat(out, " ")
+end
+
+local function starts_with(value, prefix)
+	return value:sub(1, #prefix) == prefix
+end
+
+local function decode_endian_extension(hex)
+	if starts_with(hex, "BE") then
+		return hex:sub(3)
+	end
+
+	local zero_pairs = 0
+	local offset = 1
+	while hex:sub(offset, offset + 3) == "0000" do
+		zero_pairs = zero_pairs + 1
+		offset = offset + 4
+	end
+
+	if zero_pairs > 0 and hex:sub(offset, offset + 1) == "BE" then
+		local escaped_payload = hex:sub(offset + 2)
+		local expected_payload_prefix = string.rep("0000", zero_pairs - 1) .. "BE"
+		if not starts_with(escaped_payload, expected_payload_prefix) then
+			die("malformed endian escape prefix")
+		end
+		return escaped_payload
+	end
+
+	return hex
 end
 
 local function decode(input)
@@ -377,6 +417,7 @@ end
 
 local function parse_args(argv)
 	local mode = nil
+	local endian = "none"
 	local parts = {}
 	local stop_options = false
 	local usage_only = false
@@ -396,6 +437,14 @@ local function parse_args(argv)
 			mode = "encode"
 		elseif not stop_options and (arg == "-d" or arg == "--decode") then
 			mode = "decode"
+		elseif not stop_options and arg == "--endian" then
+			i = i + 1
+			if i > #argv then
+				die("--endian requires a mode")
+			end
+			endian = argv[i]
+		elseif not stop_options and arg:sub(1, 9) == "--endian=" then
+			endian = arg:sub(10)
 		elseif not stop_options and arg == "--lang" then
 			i = i + 1
 			if i > #argv then
@@ -413,7 +462,10 @@ local function parse_args(argv)
 	if help_requested then
 		return { action = "help", usage_only = usage_only }
 	end
-	return { action = "run", mode = mode, input_parts = parts, usage_only = usage_only }
+	if endian ~= "none" and endian ~= "auto" and endian ~= "big" then
+		die("unknown endian mode: " .. endian)
+	end
+	return { action = "run", mode = mode, endian = endian, input_parts = parts, usage_only = usage_only }
 end
 
 local args = {}
@@ -456,9 +508,19 @@ if mode == nil then
 end
 
 if mode == "encode" then
-	print(encode(input))
+	if parsed.endian == "auto" then
+		die("--endian=auto is only valid when decoding")
+	end
+	print(encode(input, parsed.endian))
 elseif mode == "decode" then
-	print(decode(input))
+	if parsed.endian == "big" then
+		die("--endian=big is only valid when encoding")
+	end
+	local hex = decode(input)
+	if parsed.endian == "auto" then
+		hex = decode_endian_extension(hex)
+	end
+	print(hex)
 else
 	die("internal error: unknown mode")
 end

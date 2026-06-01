@@ -62,8 +62,27 @@ expect_failure() {
 	fi
 }
 
+expect_contains() {
+	local name="$1"
+	local expected_fragment="$2"
+	shift 2
+	local rc
+	"$@" >"$STDOUT_FILE" 2>"$STDERR_FILE"
+	rc=$?
+	local actual err
+	actual="$(cat "$STDOUT_FILE")"
+	err="$(cat "$STDERR_FILE")"
+	if [[ "$rc" -eq 0 && "$actual" == *"$expected_fragment"* && -z "$err" ]]; then
+		pass "$name"
+	else
+		fail "$name: rc=$rc missing=[$expected_fragment] stdout=[$actual] stderr=[$err]"
+	fi
+}
+
 expect_stdout 'about is one line' 'pgpwords 0.1.0 - translate hexadecimal bytes to and from the PGP word list' "$PGPWORDS" --about
 expect_stdout 'help contains usage' 'Usage: pgpwords [OPTIONS] [--] [INPUT]' "$PGPWORDS" --help --usage-only
+expect_contains 'help documents stock endian default' 'Default behavior is the stock PGP wordlist byte-stream encoding: no endian marker is emitted or interpreted.' "$PGPWORDS" --help
+expect_contains 'help documents endian extension rationale' 'The opt-in endian extension makes byte-order intent explicit for fingerprints and binary values where endian confusion is a real failure mode.' "$PGPWORDS" --help
 expect_stdout 'encode documented example' 'topmost Istanbul' "$PGPWORDS" --encode E582
 expect_stdout 'encode accepts lowercase hex' 'topmost Istanbul' "$PGPWORDS" --encode e582
 expect_stdout 'encode strips common hex separators' 'topmost Istanbul Pluto vagabond' "$PGPWORDS" --encode 'E582 94-F2'
@@ -73,11 +92,21 @@ expect_stdout 'stdin encode' 'miser travesty' bash -c "printf '82e5' | '$PGPWORD
 expect_stdout 'stdin decode' '82E5' bash -c "printf 'miser travesty' | '$PGPWORDS' --decode @stdin"
 expect_stdout 'auto detects hex input' 'topmost Istanbul' "$PGPWORDS" E582
 expect_stdout 'auto detects word input' 'E582' "$PGPWORDS" topmost Istanbul
+expect_stdout 'stock encode treats BE as data' 'skydive backwater' "$PGPWORDS" --encode BE12
+expect_stdout 'big endian encode prefixes marker and shifts payload parity' 'skydive travesty miser' "$PGPWORDS" --encode --endian=big E582
+expect_stdout 'big endian encode preserves payload that starts with BE' 'skydive racketeer atlas' "$PGPWORDS" --encode --endian big BE12
+expect_stdout 'auto endian decode strips BE marker' 'E582' "$PGPWORDS" --decode --endian=auto 'skydive travesty miser'
+expect_stdout 'stock decode preserves BE marker as data' 'BEE582' "$PGPWORDS" --decode 'skydive travesty miser'
+expect_stdout 'auto endian decode strips escaped literal BE prefix' 'BE12' "$PGPWORDS" --decode --endian=auto 'aardvark adroitness skydive racketeer atlas'
+expect_stdout 'auto endian decode strips deeper escaped literal prefix' '0000BE12' "$PGPWORDS" --decode --endian=auto 'aardvark adroitness aardvark adroitness skydive adroitness aardvark racketeer atlas'
 
 expect_failure 'rejects odd hex digit count' 'hex input must contain an even number of digits' "$PGPWORDS" --encode ABC
 expect_failure 'rejects non-hex input in encode mode' 'hex input contains non-hex character' "$PGPWORDS" --encode 'E5XX'
 expect_failure 'rejects unknown word' 'unknown PGP word at position 1: notaword' "$PGPWORDS" --decode 'topmost notaword'
 expect_failure 'rejects wrong parity word' 'word at position 1 belongs to the even list, expected odd: topmost' "$PGPWORDS" --decode 'topmost topmost'
+expect_failure 'rejects auto endian while encoding' '--endian=auto is only valid when decoding' "$PGPWORDS" --encode --endian=auto E582
+expect_failure 'rejects big endian while decoding' '--endian=big is only valid when encoding' "$PGPWORDS" --decode --endian=big 'topmost Istanbul'
+expect_failure 'rejects malformed escaped endian prefix' 'malformed endian escape prefix' "$PGPWORDS" --decode --endian=auto 'aardvark adroitness skydive backwater'
 
 even_hex=""
 even_words=()
