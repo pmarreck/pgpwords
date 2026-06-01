@@ -3,6 +3,7 @@ ver=1.2
 depth=4
 
 annotate=[
+	IDEAS.md = Deferred design notes for plausible future pgpwords extensions without implementation commitment.
 	LICENSE = MIT license for pgpwords.
 	PLAN.md = Current implementation checklist and checkpoint log.
 	README.md = Project overview, CLI examples, streaming behavior, endian extension semantics, development commands, and source references.
