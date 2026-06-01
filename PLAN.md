@@ -17,3 +17,6 @@
 - [x] Document endian extension and publish the project. Completed 2026-06-01 06:50 EDT.
   - Work: explain how/why in `--help`, start `README.md`, add MIT `LICENSE`, and publish GitHub repo `pgpwords` with `yolo` as the main branch.
   - Curiosity poke: does the published branch name match local `yolo` rather than GitHub's default `main`?
+- [x] Document width-agnostic endian markers and stream explicit stdin modes. Completed 2026-06-01 07:02 EDT.
+  - Behavior: endian markers record interpretation only; `pgpwords` does not reorder bytes or infer value width. Explicit `--encode -` and `--decode -` stream complete units before EOF; stdin auto-detect still buffers to infer mode.
+  - Curiosity poke: can `--endian=auto` stream safely without emitting marker bytes before the bounded prefix grammar is resolved?

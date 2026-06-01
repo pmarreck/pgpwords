@@ -296,8 +296,13 @@ local function help()
 		"  The opt-in endian extension makes byte-order intent explicit for fingerprints and binary values where endian confusion is a real failure mode.",
 		"  --endian=big is valid with --encode and prefixes byte BE before the already-big-endian input bytes.",
 		"  --endian=auto is valid with --decode and strips an explicit BE marker from decoded bytes.",
+		"  The marker is width-agnostic metadata only: pgpwords does not reorder bytes or infer 16-bit, 32-bit, 64-bit, or larger value width.",
 		"  Literal data that collides with the marker may be escaped as (00 00)^n BE followed by the original colliding payload.",
 		"  Example: --encode --endian=big E582 emits words for BE E5 82, shifting payload parity by one word.",
+		"",
+		"Streaming:",
+		"  Explicit stdin modes stream complete units: --encode emits words per byte, --decode emits hex per word.",
+		"  Stdin auto-detection without --encode or --decode buffers input so the mode can be inferred.",
 		"",
 		"Input may be passed as arguments, '-' or '@stdin', or via stdin when no input is given.",
 	}, "\n")
@@ -347,6 +352,77 @@ local function encode(input, endian)
 		pos = pos + 1
 	end
 	return table.concat(out, " ")
+end
+
+local function emit_word(word, state)
+	if not state.first then
+		io.stdout:write(" ")
+	end
+	io.stdout:write(word)
+	io.stdout:flush()
+	state.first = false
+end
+
+local function stream_encode(endian)
+	local state = { first = true, pos = 0, nibble = nil, pending_zero = false }
+
+	local function emit_byte(byte)
+		if state.pos % 2 == 0 then
+			emit_word(even_by_hex[byte], state)
+		else
+			emit_word(odd_by_hex[byte], state)
+		end
+		state.pos = state.pos + 1
+	end
+
+	local function process_hex_char(c)
+		if c:match("[%s:%-_]") then
+			return
+		end
+		if not c:match("[0-9A-Fa-f]") then
+			die("hex input contains non-hex character")
+		end
+		c = string.upper(c)
+		if state.nibble == nil then
+			state.nibble = c
+		else
+			emit_byte(state.nibble .. c)
+			state.nibble = nil
+		end
+	end
+
+	local function process_char(c)
+		if state.pending_zero then
+			if c == "x" or c == "X" then
+				state.pending_zero = false
+				return
+			end
+			state.pending_zero = false
+			process_hex_char("0")
+		end
+		if c == "0" then
+			state.pending_zero = true
+		else
+			process_hex_char(c)
+		end
+	end
+
+	if endian == "big" then
+		emit_byte("BE")
+	end
+
+	while true do
+		local c = io.stdin:read(1)
+		if c == nil then break end
+		process_char(c)
+	end
+	if state.pending_zero then
+		process_hex_char("0")
+	end
+	if state.nibble ~= nil then
+		die("hex input must contain an even number of digits")
+	end
+	io.stdout:write("\n")
 end
 
 local function starts_with(value, prefix)
@@ -407,6 +483,157 @@ local function decode(input)
 		die("word input is empty")
 	end
 	return table.concat(out)
+end
+
+local function decode_word(word, pos)
+	local lower = string.lower(word)
+	if pos % 2 == 0 then
+		if even_to_hex[lower] then
+			return even_to_hex[lower]
+		elseif odd_to_hex[lower] then
+			die("word at position " .. pos .. " belongs to the odd list, expected even: " .. word)
+		else
+			die("unknown PGP word at position " .. pos .. ": " .. word)
+		end
+	else
+		if odd_to_hex[lower] then
+			return odd_to_hex[lower]
+		elseif even_to_hex[lower] then
+			die("word at position " .. pos .. " belongs to the even list, expected odd: " .. word)
+		else
+			die("unknown PGP word at position " .. pos .. ": " .. word)
+		end
+	end
+end
+
+local function make_hex_stream_writer(endian)
+	local resolved = endian ~= "auto"
+	local pending = {}
+
+	local function raw_emit(hex)
+		io.stdout:write(hex)
+		io.stdout:flush()
+	end
+
+	local function flush_pending_as_data()
+		for _, byte in ipairs(pending) do
+			raw_emit(byte)
+		end
+		pending = {}
+		resolved = true
+	end
+
+	local function try_resolve_pending()
+		if #pending == 0 then
+			return
+		end
+		if pending[1] == "BE" then
+			pending = {}
+			resolved = true
+			return
+		end
+		if pending[1] ~= "00" then
+			flush_pending_as_data()
+			return
+		end
+		if #pending == 1 then
+			return
+		end
+
+		local zero_pairs = 0
+		local idx = 1
+		while pending[idx] == "00" and pending[idx + 1] == "00" do
+			zero_pairs = zero_pairs + 1
+			idx = idx + 2
+		end
+
+		if zero_pairs == 0 then
+			flush_pending_as_data()
+			return
+		end
+		if idx > #pending then
+			return
+		end
+		if pending[idx] ~= "BE" then
+			flush_pending_as_data()
+			return
+		end
+
+		local expected = {}
+		for _ = 1, zero_pairs - 1 do
+			expected[#expected + 1] = "00"
+			expected[#expected + 1] = "00"
+		end
+		expected[#expected + 1] = "BE"
+
+		local available = #pending - idx
+		if available < #expected then
+			return
+		end
+		for i = 1, #expected do
+			if pending[idx + i] ~= expected[i] then
+				die("malformed endian escape prefix")
+			end
+		end
+
+		for i = idx + 1, #pending do
+			raw_emit(pending[i])
+		end
+		pending = {}
+		resolved = true
+	end
+
+	return {
+		byte = function(hex)
+			if resolved then
+				raw_emit(hex)
+				return
+			end
+			pending[#pending + 1] = hex
+			try_resolve_pending()
+		end,
+		finish = function()
+			if not resolved and #pending > 0 then
+				raw_emit(decode_endian_extension(table.concat(pending)))
+				pending = {}
+				resolved = true
+			end
+			io.stdout:write("\n")
+		end,
+	}
+end
+
+local function stream_decode(endian)
+	local writer = make_hex_stream_writer(endian)
+	local token = {}
+	local pos = 0
+	local saw_word = false
+
+	local function flush_token()
+		if #token == 0 then
+			return
+		end
+		local word = table.concat(token)
+		token = {}
+		saw_word = true
+		writer.byte(decode_word(word, pos))
+		pos = pos + 1
+	end
+
+	while true do
+		local c = io.stdin:read(1)
+		if c == nil then break end
+		if c:match("%s") then
+			flush_token()
+		else
+			token[#token + 1] = c
+		end
+	end
+	flush_token()
+	if not saw_word then
+		die("word input is empty")
+	end
+	writer.finish()
 end
 
 local function looks_like_hex(input)
@@ -489,16 +716,32 @@ if parsed.action == "help" then
 	os.exit(0)
 end
 
+local mode = parsed.mode
+local use_stdin = #parsed.input_parts == 0
+	or (#parsed.input_parts == 1 and (parsed.input_parts[1] == "-" or parsed.input_parts[1] == "@stdin"))
+
+if mode == "encode" and parsed.endian == "auto" then
+	die("--endian=auto is only valid when decoding")
+end
+if mode == "decode" and parsed.endian == "big" then
+	die("--endian=big is only valid when encoding")
+end
+
+if use_stdin and mode == "encode" then
+	stream_encode(parsed.endian)
+	os.exit(0)
+elseif use_stdin and mode == "decode" then
+	stream_decode(parsed.endian)
+	os.exit(0)
+end
+
 local input
-if #parsed.input_parts == 0 then
-	input = read_stdin()
-elseif #parsed.input_parts == 1 and (parsed.input_parts[1] == "-" or parsed.input_parts[1] == "@stdin") then
+if use_stdin then
 	input = read_stdin()
 else
 	input = table.concat(parsed.input_parts, " ")
 end
 
-local mode = parsed.mode
 if mode == nil then
 	if looks_like_hex(input) then
 		mode = "encode"
@@ -508,14 +751,8 @@ if mode == nil then
 end
 
 if mode == "encode" then
-	if parsed.endian == "auto" then
-		die("--endian=auto is only valid when decoding")
-	end
 	print(encode(input, parsed.endian))
 elseif mode == "decode" then
-	if parsed.endian == "big" then
-		die("--endian=big is only valid when encoding")
-	end
 	local hex = decode(input)
 	if parsed.endian == "auto" then
 		hex = decode_endian_extension(hex)

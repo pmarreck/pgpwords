@@ -79,10 +79,65 @@ expect_contains() {
 	fi
 }
 
+expect_file_prefix() {
+	local file="$1"
+	local expected="$2"
+	timeout 2 bash -c '
+		file="$1"
+		expected="$2"
+		while true; do
+			actual="$(cat "$file" 2>/dev/null || true)"
+			[[ "$actual" == "$expected"* ]] && exit 0
+		done
+	' _ "$file" "$expected"
+}
+
+expect_encode_streams_before_eof() {
+	local name="$1"
+	local fifo="$SCRATCH/encode-fifo"
+	local out="$SCRATCH/encode-stream-out"
+	local err="$SCRATCH/encode-stream-err"
+	mkfifo "$fifo"
+	"$PGPWORDS" --encode - <"$fifo" >"$out" 2>"$err" &
+	local pid=$!
+	exec 3>"$fifo"
+	printf 'E5' >&3
+	if expect_file_prefix "$out" "topmost"; then
+		pass "$name"
+	else
+		fail "$name: output was not emitted before stdin closed"
+	fi
+	exec 3>&-
+	wait "$pid"
+	rm -f "$fifo"
+}
+
+expect_decode_streams_before_eof() {
+	local name="$1"
+	local fifo="$SCRATCH/decode-fifo"
+	local out="$SCRATCH/decode-stream-out"
+	local err="$SCRATCH/decode-stream-err"
+	mkfifo "$fifo"
+	"$PGPWORDS" --decode - <"$fifo" >"$out" 2>"$err" &
+	local pid=$!
+	exec 3>"$fifo"
+	printf 'topmost ' >&3
+	if expect_file_prefix "$out" "E5"; then
+		pass "$name"
+	else
+		fail "$name: output was not emitted before stdin closed"
+	fi
+	exec 3>&-
+	wait "$pid"
+	rm -f "$fifo"
+}
+
 expect_stdout 'about is one line' 'pgpwords 0.1.0 - translate hexadecimal bytes to and from the PGP word list' "$PGPWORDS" --about
 expect_stdout 'help contains usage' 'Usage: pgpwords [OPTIONS] [--] [INPUT]' "$PGPWORDS" --help --usage-only
 expect_contains 'help documents stock endian default' 'Default behavior is the stock PGP wordlist byte-stream encoding: no endian marker is emitted or interpreted.' "$PGPWORDS" --help
 expect_contains 'help documents endian extension rationale' 'The opt-in endian extension makes byte-order intent explicit for fingerprints and binary values where endian confusion is a real failure mode.' "$PGPWORDS" --help
+expect_contains 'help documents endian marker does not reorder bytes' 'The marker is width-agnostic metadata only: pgpwords does not reorder bytes or infer 16-bit, 32-bit, 64-bit, or larger value width.' "$PGPWORDS" --help
+expect_contains 'help documents explicit stdin streaming' 'Explicit stdin modes stream complete units: --encode emits words per byte, --decode emits hex per word.' "$PGPWORDS" --help
 expect_stdout 'encode documented example' 'topmost Istanbul' "$PGPWORDS" --encode E582
 expect_stdout 'encode accepts lowercase hex' 'topmost Istanbul' "$PGPWORDS" --encode e582
 expect_stdout 'encode strips common hex separators' 'topmost Istanbul Pluto vagabond' "$PGPWORDS" --encode 'E582 94-F2'
@@ -90,6 +145,8 @@ expect_stdout 'decode documented example' 'E582' "$PGPWORDS" --decode 'topmost I
 expect_stdout 'decode accepts case-insensitive words' 'E582' "$PGPWORDS" --decode 'TOPMOST istanbul'
 expect_stdout 'stdin encode' 'miser travesty' bash -c "printf '82e5' | '$PGPWORDS' --encode -"
 expect_stdout 'stdin decode' '82E5' bash -c "printf 'miser travesty' | '$PGPWORDS' --decode @stdin"
+expect_encode_streams_before_eof 'explicit stdin encode streams complete bytes before EOF'
+expect_decode_streams_before_eof 'explicit stdin decode streams complete words before EOF'
 expect_stdout 'auto detects hex input' 'topmost Istanbul' "$PGPWORDS" E582
 expect_stdout 'auto detects word input' 'E582' "$PGPWORDS" topmost Istanbul
 expect_stdout 'stock encode treats BE as data' 'skydive backwater' "$PGPWORDS" --encode BE12

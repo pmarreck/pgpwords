@@ -35,7 +35,7 @@
 					pname = "pgpwords";
 					version = "0.1.0";
 					src = ./.;
-					nativeBuildInputs = [ pkgs.luajit ];
+					nativeBuildInputs = with pkgs; [ coreutils luajit ];
 					installPhase = ''
 						mkdir -p $out/bin
 						cp bin/pgpwords $out/bin/pgpwords

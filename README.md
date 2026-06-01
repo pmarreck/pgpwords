@@ -19,6 +19,12 @@ printf '82e5' | pgpwords --encode -
 
 Hex input is case-insensitive and may contain spaces, colons, hyphens, or underscores as separators. PGP words are case-insensitive.
 
+## Streaming
+
+Explicit stdin modes stream. `pgpwords --encode -` emits each word as soon as a complete byte is available, and `pgpwords --decode -` emits each hex byte as soon as a complete word is available. `--endian=auto` keeps only the bounded prefix needed to decide whether an endian marker or escape is present.
+
+When no `--encode` or `--decode` mode is provided for stdin, `pgpwords` buffers stdin so it can preserve auto-detection between hex and word input.
+
 ## Endian Extension
 
 By default, `pgpwords` follows the stock PGP wordlist behavior exactly: no endian marker is emitted or interpreted.
@@ -36,6 +42,8 @@ pgpwords --decode --endian=auto 'skydive travesty miser'
 `--endian=big` is valid while encoding. It prefixes byte `BE` before the input bytes, with the assumption that the input is already in big-endian order. The marker intentionally shifts every following payload word to the opposite even/odd table.
 
 `--endian=auto` is valid while decoding. It interprets a leading `BE` byte as an extension marker and strips it from the returned hex bytes. Literal payloads that collide with marker prefixes use repeated `00 00` escapes:
+
+The endian marker is width-agnostic metadata only. `pgpwords` does not reorder bytes and does not infer whether the payload represents 16-bit, 32-bit, 64-bit, or larger values. Any byte-order conversion has to happen before encoding; the marker records the intended interpretation of the byte stream.
 
 ```text
 BE ...                    marker; return ...
